@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Seismograph Triangle Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            min-width: 250px;
+        }
+
+        #info-panel h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #0ff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .data-label {
+            color: #888;
+        }
+
+        .data-value {
+            font-weight: bold;
+        }
+
+        .x-axis { color: #ff4444; }
+        .y-axis { color: #44ff44; }
+        .z-axis { color: #4444ff; }
+        .magnitude { color: #ffff00; }
+
+        #status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #333;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #status.connected {
+            border-color: #0f0;
+            color: #0f0;
+        }
+
+        #status.disconnected {
+            border-color: #f00;
+            color: #f00;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border: 2px solid #333;
+            border-radius: 10px;
+        }
+
+        #controls label {
+            display: block;
+            margin: 5px 0;
+            font-size: 12px;
+            color: #888;
+        }
+
+        #controls input[type="range"] {
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="info-panel">
+        <h2>Sensor Data</h2>
+        <div class="data-row">
+            <span class="data-label">X-Axis:</span>
+            <span class="data-value x-axis" id="val-x">0.000</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">Y-Axis:</span>
+            <span class="data-value y-axis" id="val-y">0.000</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">Z-Axis:</span>
+            <span class="data-value z-axis" id="val-z">0.000</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">Magnitude:</span>
+            <span class="data-value magnitude" id="val-mag">0.000</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">Peak:</span>
+            <span class="data-value" id="val-peak" style="color: #ff8800;">0.000</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">MMI:</span>
+            <span class="data-value" id="val-mmi" style="color: #00ff00;">I</span>
+        </div>
+    </div>
+
+    <div id="status" class="disconnected">● DISCONNECTED</div>
+
+    <div id="controls">
+        <label>Scale: <span id="scale-value">50</span></label>
+        <input type="range" id="scale-slider" min="10" max="200" value="50">
+        <label>Smoothing: <span id="smooth-value">0.3</span></label>
+        <input type="range" id="smooth-slider" min="0" max="90" value="30">
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ─── Configuration ───
+        let scale = 50;
+        let smoothing = 0.3;
+        let currentX = 0, currentY = 0, currentZ = 0;
+        let targetX = 0, targetY = 0, targetZ = 0;
+
+        // ─── Three.js Setup ───
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000);
+
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 0, 5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // ─── Lighting ───
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+
+        const pointLight1 = new THREE.PointLight(0xffffff, 1, 100);
+        pointLight1.position.set(5, 5, 5);
+        scene.add(pointLight1);
+
+        const pointLight2 = new THREE.PointLight(0x00ffff, 0.5, 100);
+        pointLight2.position.set(-5, -5, 5);
+        scene.add(pointLight2);
+
+        // ─── Grid Helper ───
+        const gridHelper = new THREE.GridHelper(10, 20, 0x333333, 0x111111);
+        gridHelper.rotation.x = Math.PI / 2;
+        scene.add(gridHelper);
+
+        // ─── Coordinate Axes ───
+        const axesHelper = new THREE.AxesHelper(3);
+        scene.add(axesHelper);
+
+        // ─── Triangle Geometry ───
+        const triangleGeometry = new THREE.BufferGeometry();
+        const vertices = new Float32Array([
+            0, 0, 0,  // Vertex 0
+            0, 0, 0,  // Vertex 1
+            0, 0, 0   // Vertex 2
+        ]);
+        triangleGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
+        // Triangle material with glow effect
+        const triangleMaterial = new THREE.MeshPhongMaterial({
+            color: 0x00ffff,
+            emissive: 0x004444,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.7,
+            shininess: 100
+        });
+
+        const triangle = new THREE.Mesh(triangleGeometry, triangleMaterial);
+        scene.add(triangle);
+
+        // ─── Triangle Edges (wireframe) ───
+        const edgesGeometry = new THREE.EdgesGeometry(triangleGeometry);
+        const edgesMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x00ffff,
+            linewidth: 2
+        });
+        const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+        scene.add(edges);
+
+        // ─── Vertex Points (spheres) ───
+        const vertexGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+        const vertexMaterials = [
+            new THREE.MeshPhongMaterial({ color: 0xff4444, emissive: 0x440000 }), // X - Red
+            new THREE.MeshPhongMaterial({ color: 0x44ff44, emissive: 0x004400 }), // Y - Green
+            new THREE.MeshPhongMaterial({ color: 0x4444ff, emissive: 0x000044 })  // Z - Blue
+        ];
+
+        const vertexSpheres = [];
+        for (let i = 0; i < 3; i++) {
+            const sphere = new THREE.Mesh(vertexGeometry, vertexMaterials[i]);
+            scene.add(sphere);
+            vertexSpheres.push(sphere);
+        }
+
+        // ─── Vertex Labels (using sprites) ───
+        function createTextSprite(text, color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const context = canvas.getContext('2d');
+            context.font = 'Bold 48px Courier New';
+            context.fillStyle = color;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, 32, 32);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ 
+                map: texture,
+                transparent: true
+            });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(0.5, 0.5, 0.5);
+            return sprite;
+        }
+
+        const labels = [
+            createTextSprite('X', '#ff4444'),
+            createTextSprite('Y', '#44ff44'),
+            createTextSprite('Z', '#4444ff')
+        ];
+        labels.forEach(label => scene.add(label));
+
+        // ─── Trail Effect (particle system) ───
+        const trailCount = 50;
+        const trailGeometry = new THREE.BufferGeometry();
+        const trailPositions = new Float32Array(trailCount * 3 * 3);
+        trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+        const trailMaterial = new THREE.PointsMaterial({
+            color: 0x00ffff,
+            size: 0.05,
+            transparent: true,
+            opacity: 0.5
+        });
+        const trail = new THREE.Points(trailGeometry, trailMaterial);
+        scene.add(trail);
+
+        let trailHistory = [];
+
+        // ─── Mouse Controls ───
+        let mouseX = 0, mouseY = 0;
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let cameraAngleX = 0, cameraAngleY = 0;
+        let cameraDistance = 5;
+
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                cameraAngleX += deltaX * 0.01;
+                cameraAngleY += deltaY * 0.01;
+                cameraAngleY = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, cameraAngleY));
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        renderer.domElement.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        renderer.domElement.addEventListener('wheel', (e) => {
+            cameraDistance += e.deltaY * 0.01;
+            cameraDistance = Math.max(2, Math.min(15, cameraDistance));
+        });
+
+        // ─── Sliders ───
+        document.getElementById('scale-slider').addEventListener('input', (e) => {
+            scale = parseInt(e.target.value);
+            document.getElementById('scale-value').textContent = scale;
+        });
+
+        document.getElementById('smooth-slider').addEventListener('input', (e) => {
+            smoothing = parseInt(e.target.value) / 100;
+            document.getElementById('smooth-value').textContent = smoothing.toFixed(2);
+        });
+
+        // ─── Data Update Function ───
+        function updateTriangle(ax, ay, az) {
+            targetX = ax;
+            targetY = ay;
+            targetZ = az;
+
+            // Smooth interpolation
+            currentX += (targetX - currentX) * (1 - smoothing);
+            currentY += (targetY - currentY) * (1 - smoothing);
+            currentZ += (targetZ - currentZ) * (1 - smoothing);
+
+            // Calculate triangle vertices in 3D space
+            const scale_factor = scale / 10;
+            const v0 = new THREE.Vector3(currentX * scale_factor, 0, 0);
+            const v1 = new THREE.Vector3(0, currentY * scale_factor, 0);
+            const v2 = new THREE.Vector3(0, 0, currentZ * scale_factor);
+
+            // Update triangle geometry
+            const positions = triangle.geometry.attributes.position.array;
+            positions[0] = v0.x; positions[1] = v0.y; positions[2] = v0.z;
+            positions[3] = v1.x; positions[4] = v1.y; positions[5] = v1.z;
+            positions[6] = v2.x; positions[7] = v2.y; positions[8] = v2.z;
+            triangle.geometry.attributes.position.needsUpdate = true;
+
+            // Update edges
+            edges.geometry.dispose();
+            const edgesGeo = new THREE.EdgesGeometry(triangle.geometry);
+            edges.geometry = edgesGeo;
+
+            // Update vertex spheres
+            vertexSpheres[0].position.copy(v0);
+            vertexSpheres[1].position.copy(v1);
+            vertexSpheres[2].position.copy(v2);
+
+            // Update labels
+            labels[0].position.set(v0.x * 1.2, v0.y * 1.2, v0.z * 1.2);
+            labels[1].position.set(v1.x * 1.2, v1.y * 1.2, v1.z * 1.2);
+            labels[2].position.set(v2.x * 1.2, v2.y * 1.2, v2.z * 1.2);
+
+            // Update trail
+            trailHistory.push([v0.clone(), v1.clone(), v2.clone()]);
+            if (trailHistory.length > trailCount) {
+                trailHistory.shift();
+            }
+
+            const trailPos = trail.geometry.attributes.position.array;
+            for (let i = 0; i < trailCount; i++) {
+                if (i < trailHistory.length) {
+                    const idx = i * 9;
+                    trailPos[idx] = trailHistory[i][0].x;
+                    trailPos[idx + 1] = trailHistory[i][0].y;
+                    trailPos[idx + 2] = trailHistory[i][0].z;
+                    trailPos[idx + 3] = trailHistory[i][1].x;
+                    trailPos[idx + 4] = trailHistory[i][1].y;
+                    trailPos[idx + 5] = trailHistory[i][1].z;
+                    trailPos[idx + 6] = trailHistory[i][2].x;
+                    trailPos[idx + 7] = trailHistory[i][2].y;
+                    trailPos[idx + 8] = trailHistory[i][2].z;
+                }
+            }
+            trail.geometry.attributes.position.needsUpdate = true;
+
+            // Dynamic color based on magnitude
+            const magnitude = Math.sqrt(ax * ax + ay * ay + az * az);
+            const intensity = Math.min(magnitude / 10, 1);
+            const r = Math.floor(intensity * 255);
+            const g = Math.floor((1 - intensity) * 255);
+            const b = Math.floor((1 - intensity) * 100);
+            triangle.material.color.setRGB(r / 255, g / 255, b / 255);
+            triangle.material.emissive.setRGB(r / 512, g / 512, b / 512);
+        }
+
+        // ─── Update Info Panel ───
+        function updateInfoPanel(ax, ay, az, peak, mmi) {
+            const magnitude = Math.sqrt(ax * ax + ay * ay + az * az);
+            document.getElementById('val-x').textContent = ax.toFixed(3);
+            document.getElementById('val-y').textContent = ay.toFixed(3);
+            document.getElementById('val-z').textContent = az.toFixed(3);
+            document.getElementById('val-mag').textContent = magnitude.toFixed(3);
+            document.getElementById('val-peak').textContent = peak.toFixed(3);
+            
+            const mmi_labels = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+            document.getElementById('val-mmi').textContent = mmi_labels[mmi] || '?';
+        }
+
+        // ─── WebSocket Connection ───
+        let ws = null;
+        let lastDataTime = Date.now();
+
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:8765');
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                document.getElementById('status').textContent = '● CONNECTED';
+                document.getElementById('status').className = 'connected';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'sensor') {
+                    updateTriangle(data.ax, data.ay, data.az);
+                    updateInfoPanel(data.ax, data.ay, data.az, data.peak, data.mmi);
+                    lastDataTime = Date.now();
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                document.getElementById('status').textContent = '● DISCONNECTED';
+                document.getElementById('status').className = 'disconnected';
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        // ─── Animation Loop ───
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Update camera position based on mouse drag
+            camera.position.x = Math.sin(cameraAngleX) * Math.cos(cameraAngleY) * cameraDistance;
+            camera.position.y = Math.sin(cameraAngleY) * cameraDistance;
+            camera.position.z = Math.cos(cameraAngleX) * Math.cos(cameraAngleY) * cameraDistance;
+            camera.lookAt(0, 0, 0);
+
+            // Auto-rotate if not dragging
+            if (!isDragging) {
+                cameraAngleX += 0.002;
+            }
+
+            // Check for timeout
+            if (Date.now() - lastDataTime > 5000) {
+                document.getElementById('status').textContent = '● NO SIGNAL';
+                document.getElementById('status').className = 'disconnected';
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // ─── Window Resize ───
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ─── Start ───
+        connectWebSocket();
+        animate();
+    </script>
+</body>
+</html>

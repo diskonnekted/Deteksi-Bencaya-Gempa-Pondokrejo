@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monitoring Bahaya Gempa - Kalurahan Pondokrejo, Sleman Yogyakarta</title>
+    <style>
+      :root {
+        --bg: #06070a;
+        --panel: #0d1016;
+        --panel2: #0a0c11;
+        --border: #202532;
+        --text: #e8ecf3;
+        --muted: #a6afbf;
+        --good: #20d07a;
+        --warn: #ffb020;
+        --bad: #ff3b3b;
+        --cyan: #00d3ff;
+        --x: #ff4b4b;
+        --y: #43ff7a;
+        --z: #4a7dff;
+        --mag: #ffd84a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        background: radial-gradient(1200px 900px at 20% 0%, #0b1020 0%, var(--bg) 55%);
+        color: var(--text);
+      }
+
+      header {
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, rgba(20, 26, 40, 0.8) 0%, rgba(8, 10, 14, 0.5) 100%);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(6px);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+        gap: 14px;
+        align-items: center;
+      }
+
+      .title {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .title h1 {
+        font-size: 18px;
+        margin: 0;
+        letter-spacing: 0.4px;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .conn {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        padding: 7px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(12, 14, 18, 0.6);
+        font-size: 12px;
+        color: var(--muted);
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--bad);
+        box-shadow: 0 0 0 3px rgba(255, 59, 59, 0.15);
+      }
+
+      .pill.good .dot {
+        background: var(--good);
+        box-shadow: 0 0 0 3px rgba(32, 208, 122, 0.15);
+      }
+
+      .pill.warn .dot {
+        background: var(--warn);
+        box-shadow: 0 0 0 3px rgba(255, 176, 32, 0.15);
+      }
+
+      .input {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        padding: 7px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(12, 14, 18, 0.6);
+      }
+
+      .input label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .input input {
+        width: 210px;
+        font: inherit;
+        font-size: 12px;
+        color: var(--text);
+        background: transparent;
+        border: none;
+        outline: none;
+      }
+
+      .btn {
+        font: inherit;
+        font-size: 12px;
+        color: var(--text);
+        background: rgba(0, 211, 255, 0.14);
+        border: 1px solid rgba(0, 211, 255, 0.3);
+        border-radius: 10px;
+        padding: 7px 10px;
+        cursor: pointer;
+      }
+
+      .btn:active {
+        transform: translateY(1px);
+      }
+
+      main {
+        padding: 16px 18px 22px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        background: rgba(10, 12, 17, 0.6);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+
+      .panelHeader {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 12px;
+        background: rgba(13, 16, 22, 0.8);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .panelHeader h2 {
+        margin: 0;
+        font-size: 13px;
+        letter-spacing: 0.2px;
+        color: var(--text);
+      }
+
+      .panelHeader .meta {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .metaStack {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+      }
+
+      .metaRow {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .panelHeader .meta select {
+        font: inherit;
+        font-size: 12px;
+        color: var(--text);
+        background: rgba(6, 7, 10, 0.5);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 5px 8px;
+        outline: none;
+        margin-right: 8px;
+      }
+
+      .btnSmall {
+        padding: 5px 8px;
+        border-radius: 10px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 12px;
+        padding: 12px;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+      }
+
+      .card {
+        border: 1px solid var(--border);
+        background: rgba(6, 7, 10, 0.5);
+        border-radius: 12px;
+        padding: 10px;
+        min-height: 72px;
+      }
+
+      .k {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+
+      .v {
+        font-size: 22px;
+        letter-spacing: 0.3px;
+      }
+
+      .v small {
+        font-size: 12px;
+        color: var(--muted);
+        margin-left: 6px;
+      }
+
+      .mmiBox {
+        border: 1px solid var(--border);
+        background: rgba(6, 7, 10, 0.5);
+        border-radius: 12px;
+        padding: 10px;
+        display: grid;
+        grid-template-columns: 132px 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .mmiBadge {
+        width: 132px;
+        aspect-ratio: 1 / 1;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        display: grid;
+        grid-template-rows: 1fr auto auto;
+        place-items: center;
+        padding: 10px 8px;
+        font-weight: 800;
+        color: #000;
+        background: #fff;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+        transform: translateZ(0);
+      }
+
+      .mmiBadge.mmiPulse {
+        animation: mmiPulse 900ms ease-in-out infinite;
+      }
+
+      .mmiBadge.mmiSevere {
+        animation: mmiPulse 600ms ease-in-out infinite;
+      }
+
+      @keyframes mmiPulse {
+        0% {
+          transform: scale(1);
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+        }
+        50% {
+          transform: scale(1.04);
+          box-shadow: 0 18px 42px rgba(0, 211, 255, 0.28), 0 12px 30px rgba(0, 0, 0, 0.35);
+        }
+        100% {
+          transform: scale(1);
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+        }
+      }
+
+      .mmiRoman {
+        font-size: 56px;
+        line-height: 1;
+        letter-spacing: 0.6px;
+      }
+
+      .mmiLabel {
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        opacity: 0.9;
+      }
+
+      .mmiNumBig {
+        font-size: 28px;
+        line-height: 1;
+        font-weight: 900;
+      }
+
+      .mmiDesc {
+        display: grid;
+        gap: 6px;
+      }
+
+      .mmiDesc .text {
+        font-size: 13px;
+        color: var(--text);
+        line-height: 1.35;
+      }
+
+      .chartWrap {
+        padding: 12px;
+      }
+
+      canvas {
+        width: 100%;
+        height: 240px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(6, 7, 10, 0.5);
+        display: block;
+      }
+
+      canvas.threeCanvas {
+        height: 100%;
+        background: rgba(6, 7, 10, 0.4);
+      }
+
+      .threeHost {
+        padding: 12px;
+      }
+
+      #pyramid3d {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        height: auto;
+        min-height: 260px;
+        max-height: 520px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(6, 7, 10, 0.5);
+        overflow: hidden;
+      }
+
+      .legend {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 10px 12px 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .legendItem {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        background: var(--muted);
+      }
+
+      .log {
+        padding: 12px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .logItem {
+        border: 1px solid var(--border);
+        background: rgba(6, 7, 10, 0.5);
+        border-radius: 12px;
+        padding: 10px;
+        font-size: 12px;
+        color: var(--text);
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .logItem .left {
+        display: inline-flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .tag {
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .tag.bad {
+        color: #ffd7d7;
+        border-color: rgba(255, 59, 59, 0.35);
+        background: rgba(255, 59, 59, 0.12);
+      }
+
+      .tag.warn {
+        color: #ffe8c2;
+        border-color: rgba(255, 176, 32, 0.35);
+        background: rgba(255, 176, 32, 0.12);
+      }
+
+      .tag.good {
+        color: #ccffe8;
+        border-color: rgba(32, 208, 122, 0.35);
+        background: rgba(32, 208, 122, 0.12);
+      }
+
+      @media (max-width: 980px) {
+        .row {
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+        .conn {
+          justify-content: flex-start;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .cards {
+          grid-template-columns: 1fr 1fr;
+        }
+        canvas {
+          height: 220px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="row">
+        <div class="title">
+          <h1>Monitoring Bahaya Gempa - Kalurahan Pondokrejo, Sleman Yogyakarta</h1>
+          <div class="subtitle">Membaca data dari WebSocket (UDP 8888 → WS 8765/8766)</div>
+        </div>
+        <div class="conn">
+          <div id="statusPill" class="pill">
+            <span class="dot" id="statusDot"></span>
+            <span id="statusText">DISCONNECTED</span>
+          </div>
+          <div class="input">
+            <label for="wsUrl">WS</label>
+            <input id="wsUrl" type="text" spellcheck="false" />
+          </div>
+          <button id="btnConnect" class="btn" type="button">Connect</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="grid">
+        <section class="panel">
+          <div class="panelHeader">
+            <h2>3D Waveform Trail</h2>
+            <div class="meta">
+              <select id="trailMode">
+                <option value="helix">Helix</option>
+                <option value="waveform">Waveform</option>
+              </select>
+              <span id="pyrMeta">-</span>
+            </div>
+          </div>
+          <div class="threeHost">
+            <div id="pyramid3d"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panelHeader">
+            <h2>Grafik Realtime</h2>
+            <div class="meta metaStack">
+              <span id="chartMeta">Buffer: 0</span>
+              <span id="metaText">Last update: -</span>
+            </div>
+          </div>
+          <div class="legend">
+            <span class="legendItem"><span class="swatch" style="background: var(--mag)"></span>MAG</span>
+            <span class="legendItem"><span class="swatch" style="background: var(--x)"></span>AX</span>
+            <span class="legendItem"><span class="swatch" style="background: var(--y)"></span>AY</span>
+            <span class="legendItem"><span class="swatch" style="background: var(--z)"></span>AZ</span>
+            <span class="legendItem"><span class="swatch" style="background: #7a7f8f"></span>Grid</span>
+          </div>
+          <div class="chartWrap">
+            <canvas id="chart"></canvas>
+          </div>
+          <div class="stats">
+            <div class="cards">
+              <div class="card">
+                <div class="k">AX</div>
+                <div class="v" id="axVal">0.000 <small>m/s²</small></div>
+              </div>
+              <div class="card">
+                <div class="k">AY</div>
+                <div class="v" id="ayVal">0.000 <small>m/s²</small></div>
+              </div>
+              <div class="card">
+                <div class="k">AZ</div>
+                <div class="v" id="azVal">0.000 <small>m/s²</small></div>
+              </div>
+              <div class="card">
+                <div class="k">MAG</div>
+                <div class="v" id="magVal">0.000 <small>m/s²</small></div>
+              </div>
+              <div class="card">
+                <div class="k">PEAK</div>
+                <div class="v" id="peakVal">0.000 <small>m/s²</small></div>
+              </div>
+              <div class="card">
+                <div class="k">RSSI</div>
+                <div class="v" id="rssiVal">---</div>
+              </div>
+              <div class="card">
+                <div class="k">VIB</div>
+                <div class="v" id="vibVal">0 <small>pps</small></div>
+              </div>
+            </div>
+            <div class="mmiBox">
+              <div id="mmiBadge" class="mmiBadge">
+                <div id="mmiRoman" class="mmiRoman">I</div>
+                <div class="mmiLabel">MMI</div>
+                <div id="mmiNum" class="mmiNumBig">1</div>
+              </div>
+              <div class="mmiDesc">
+                <div class="text" id="mmiDesc">Menunggu data...</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panelHeader">
+            <h2>Log Alert</h2>
+            <div class="meta metaRow">
+              <span id="alertMeta">0 event</span>
+              <button id="toggleLog" class="btn btnSmall" type="button">Tampilkan</button>
+            </div>
+          </div>
+          <div class="log" id="log"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panelHeader">
+            <h2>Koneksi</h2>
+            <div class="meta">Tips cepat</div>
+          </div>
+          <div class="log">
+            <div class="logItem">
+              <div class="left">
+                <span class="tag good">UDP</span>
+                <span>ESP32 receiver kirim ke 192.168.1.66:8888 (format: ax,ay,az,peak,mmi,rssi)</span>
+              </div>
+            </div>
+            <div class="logItem">
+              <div class="left">
+                <span class="tag warn">WS</span>
+                <span>Jalankan server WebSocket di PC: python websocket_server.py (port 8765/8766)</span>
+              </div>
+            </div>
+            <div class="logItem">
+              <div class="left">
+                <span class="tag">Browser</span>
+                <span>Buka file HTML ini (atau host via HTTP) dari device lain di jaringan</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      const mmiLabels = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+      const mmiDescs = [
+        "-",
+        "Tidak terasa",
+        "Terasa sangat lemah",
+        "Lemah - seperti truk lewat",
+        "Sedang - jendela bergetar",
+        "Agak kuat - benda bergerak",
+        "Kuat - terasa semua orang",
+        "Sangat kuat - sulit berdiri",
+        "Merusak - bangunan retak",
+        "Hancur - bangunan rubuh",
+        "Bencana - struktur hancur",
+        "Bencana total",
+        "Kehancuran total"
+      ];
+      const mmiColors = {
+        1: "#172036",
+        2: "#00ff00",
+        3: "#00ff00",
+        4: "#ffff00",
+        5: "#ffff00",
+        6: "#ffaa00",
+        7: "#ff8800",
+        8: "#ff4400",
+        9: "#ff0000",
+        10: "#cc0000",
+        11: "#880000",
+        12: "#000000"
+      };
+
+      const els = {
+        statusPill: document.getElementById("statusPill"),
+        statusText: document.getElementById("statusText"),
+        axVal: document.getElementById("axVal"),
+        ayVal: document.getElementById("ayVal"),
+        azVal: document.getElementById("azVal"),
+        magVal: document.getElementById("magVal"),
+        peakVal: document.getElementById("peakVal"),
+        rssiVal: document.getElementById("rssiVal"),
+        vibVal: document.getElementById("vibVal"),
+        mmiBadge: document.getElementById("mmiBadge"),
+        mmiRoman: document.getElementById("mmiRoman"),
+        mmiNum: document.getElementById("mmiNum"),
+        mmiDesc: document.getElementById("mmiDesc"),
+        metaText: document.getElementById("metaText"),
+        chartMeta: document.getElementById("chartMeta"),
+        alertMeta: document.getElementById("alertMeta"),
+        toggleLog: document.getElementById("toggleLog"),
+        pyrMeta: document.getElementById("pyrMeta"),
+        trailMode: document.getElementById("trailMode"),
+        log: document.getElementById("log"),
+        wsUrl: document.getElementById("wsUrl"),
+        btnConnect: document.getElementById("btnConnect"),
+        chart: document.getElementById("chart"),
+        pyramidHost: document.getElementById("pyramid3d")
+      };
+
+      const state = {
+        ws: null,
+        connected: false,
+        lastMessageAt: 0,
+        lastChartDrawAt: 0,
+        lastWsUrl: "",
+        lastOpenAt: 0,
+        shortCloseCount: 0,
+        fallbackTried: false,
+        trailTarget: { ax: 0, ay: 0, az: 0, peak: 0, mmi: 1 },
+        trailMode: "helix",
+        maxPoints: 600,
+        t: [],
+        ax: [],
+        ay: [],
+        az: [],
+        mag: [],
+        peak: [],
+        mmi: 1,
+        rssi: 0,
+        vib: 0,
+        lastAlertAt: 0,
+        alertCount: 0
+      };
+
+      const LOG_STORAGE_KEY = "seismo_alert_log_v1";
+      const LOG_UI_STORAGE_KEY = "seismo_alert_log_ui_v1";
+      const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+      const LOG_MAX_ITEMS = 3000;
+
+      function clamp(n, a, b) {
+        return Math.max(a, Math.min(b, n));
+      }
+
+      function toFixed3(n) {
+        if (!Number.isFinite(n)) return "0.000";
+        return n.toFixed(3);
+      }
+
+      function setStatus(kind, text) {
+        els.statusText.textContent = text;
+        els.statusPill.classList.remove("good", "warn");
+        if (kind === "good") els.statusPill.classList.add("good");
+        if (kind === "warn") els.statusPill.classList.add("warn");
+      }
+
+      function updateMmi(mmi) {
+        const m = clamp(Number(mmi) || 1, 1, 12);
+        const label = mmiLabels[m] || "?";
+        const color = mmiColors[m] || "#ffffff";
+        const textColor = m >= 4 && m <= 11 ? "#000000" : "#ffffff";
+        els.mmiBadge.style.background = color;
+        els.mmiBadge.style.color = textColor;
+        if (els.mmiRoman) els.mmiRoman.textContent = label;
+        els.mmiNum.textContent = String(m);
+        els.mmiBadge.classList.toggle("mmiPulse", m >= 5 && m < 7);
+        els.mmiBadge.classList.toggle("mmiSevere", m >= 7);
+        els.mmiDesc.textContent = mmiDescs[m] || "-";
+      }
+
+      function pushPoint(ts, ax, ay, az, peak, mmi, rssi, vib) {
+        const mag = Math.sqrt(ax * ax + ay * ay + az * az);
+        state.t.push(ts);
+        state.ax.push(ax);
+        state.ay.push(ay);
+        state.az.push(az);
+        state.mag.push(mag);
+        state.peak.push(peak);
+        while (state.t.length > state.maxPoints) {
+          state.t.shift();
+          state.ax.shift();
+          state.ay.shift();
+          state.az.shift();
+          state.mag.shift();
+          state.peak.shift();
+        }
+        state.mmi = mmi;
+        state.rssi = rssi;
+        state.vib = vib;
+      }
+
+      function addAlert(ts, mmi, peak, mag) {
+        const when = new Date(ts).toLocaleTimeString();
+        const tagClass = mmi >= 7 ? "bad" : "warn";
+        const tagText = mmi >= 7 ? "ALERT" : "WARN";
+        const entry = {
+          ts,
+          mmi,
+          peak,
+          mag,
+          rssi: state.rssi,
+          vib: state.vib
+        };
+        persistLogEntry(entry);
+        if (state.showLog) {
+          els.log.prepend(createLogItem(entry));
+          trimLogDom();
+        }
+        updateLogMeta();
+      }
+
+      function loadStoredLogs() {
+        try {
+          const raw = localStorage.getItem(LOG_STORAGE_KEY);
+          const data = raw ? JSON.parse(raw) : [];
+          return Array.isArray(data) ? data : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function saveStoredLogs(items) {
+        try {
+          localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(items));
+        } catch {}
+      }
+
+      function pruneLogs(items) {
+        const now = Date.now();
+        const keepAfter = now - LOG_RETENTION_MS;
+        const pruned = items.filter((x) => x && typeof x.ts === "number" && x.ts >= keepAfter);
+        if (pruned.length > LOG_MAX_ITEMS) return pruned.slice(pruned.length - LOG_MAX_ITEMS);
+        return pruned;
+      }
+
+      function persistLogEntry(entry) {
+        const items = pruneLogs(loadStoredLogs());
+        items.push(entry);
+        saveStoredLogs(pruneLogs(items));
+      }
+
+      function createLogItem(entry) {
+        const ts = typeof entry.ts === "number" ? entry.ts : Date.now();
+        const mmi = clamp(Number(entry.mmi) || 1, 1, 12);
+        const peak = Number(entry.peak) || 0;
+        const mag = Number(entry.mag) || 0;
+        const rssi = Number(entry.rssi) || 0;
+        const vib = Number(entry.vib) || 0;
+
+        const when = new Date(ts).toLocaleTimeString();
+        const tagClass = mmi >= 7 ? "bad" : "warn";
+        const tagText = mmi >= 7 ? "ALERT" : "WARN";
+
+        const item = document.createElement("div");
+        item.className = "logItem";
+        const left = document.createElement("div");
+        left.className = "left";
+        const tag = document.createElement("span");
+        tag.className = "tag " + tagClass;
+        tag.textContent = tagText;
+        const msg = document.createElement("span");
+        msg.textContent = `MMI ${mmiLabels[mmi] || "?"} | peak=${toFixed3(peak)} | mag=${toFixed3(mag)} | vib=${vib} | rssi=${rssi || "---"}`;
+        left.appendChild(tag);
+        left.appendChild(msg);
+        const right = document.createElement("span");
+        right.style.color = "var(--muted)";
+        right.textContent = when;
+        item.appendChild(left);
+        item.appendChild(right);
+        return item;
+      }
+
+      function trimLogDom() {
+        while (els.log.children.length > 30) {
+          els.log.removeChild(els.log.lastChild);
+        }
+      }
+
+      function updateLogMeta() {
+        const items = pruneLogs(loadStoredLogs());
+        state.alertCount = items.length;
+        els.alertMeta.textContent = `${state.alertCount} event`;
+      }
+
+      function setLogVisible(visible) {
+        state.showLog = Boolean(visible);
+        els.log.style.display = state.showLog ? "grid" : "none";
+        if (els.toggleLog) els.toggleLog.textContent = state.showLog ? "Sembunyikan" : "Tampilkan";
+        try {
+          localStorage.setItem(LOG_UI_STORAGE_KEY, JSON.stringify({ showLog: state.showLog }));
+        } catch {}
+        if (state.showLog) {
+          const items = pruneLogs(loadStoredLogs());
+          els.log.innerHTML = "";
+          const latest = items.slice(-30).reverse();
+          for (const it of latest) els.log.appendChild(createLogItem(it));
+          trimLogDom();
+        }
+      }
+
+      function resizeCanvas(canvas) {
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        const rect = canvas.getBoundingClientRect();
+        const w = Math.max(1, Math.floor(rect.width * dpr));
+        const h = Math.max(1, Math.floor(rect.height * dpr));
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+      }
+
+      function drawChart() {
+        const canvas = els.chart;
+        resizeCanvas(canvas);
+        const ctx = canvas.getContext("2d");
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        const n = state.t.length;
+        els.chartMeta.textContent = `Buffer: ${n}`;
+        if (n < 2) return;
+
+        const pad = Math.floor(16 * (window.devicePixelRatio || 1));
+        const plotX0 = pad;
+        const plotY0 = pad;
+        const plotW = w - pad * 2;
+        const plotH = h - pad * 2;
+
+        const all = [];
+        for (let i = 0; i < n; i++) {
+          all.push(Math.abs(state.ax[i]), Math.abs(state.ay[i]), Math.abs(state.az[i]), Math.abs(state.mag[i]));
+        }
+        const maxVal = Math.max(5.0, ...all);
+        const yMax = maxVal;
+        const yMin = -maxVal;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(122,127,143,0.20)";
+        ctx.lineWidth = 1;
+        const gridLines = 6;
+        for (let i = 0; i <= gridLines; i++) {
+          const y = plotY0 + (plotH * i) / gridLines;
+          ctx.beginPath();
+          ctx.moveTo(plotX0, y);
+          ctx.lineTo(plotX0 + plotW, y);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        function yScale(v) {
+          const t = (v - yMin) / (yMax - yMin);
+          return plotY0 + plotH * (1 - t);
+        }
+
+        function xScale(i) {
+          return plotX0 + (plotW * i) / (n - 1);
+        }
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(122,127,143,0.35)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(plotX0, yScale(0));
+        ctx.lineTo(plotX0 + plotW, yScale(0));
+        ctx.stroke();
+        ctx.restore();
+
+        function drawLine(arr, color, width) {
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          ctx.moveTo(xScale(0), yScale(arr[0]));
+          for (let i = 1; i < n; i++) {
+            ctx.lineTo(xScale(i), yScale(arr[i]));
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        drawLine(state.mag, getComputedStyle(document.documentElement).getPropertyValue("--mag").trim() || "#ffd84a", 2);
+        drawLine(state.ax, getComputedStyle(document.documentElement).getPropertyValue("--x").trim() || "#ff4b4b", 1);
+        drawLine(state.ay, getComputedStyle(document.documentElement).getPropertyValue("--y").trim() || "#43ff7a", 1);
+        drawLine(state.az, getComputedStyle(document.documentElement).getPropertyValue("--z").trim() || "#4a7dff", 1);
+
+        ctx.save();
+        ctx.fillStyle = "rgba(166,175,191,0.95)";
+        ctx.font = `${Math.floor(11 * (window.devicePixelRatio || 1))}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`;
+        const label = `±${yMax.toFixed(1)} m/s²`;
+        ctx.fillText(label, plotX0, plotY0 + Math.floor(11 * (window.devicePixelRatio || 1)));
+        ctx.restore();
+      }
+
+      function initWaveformTrail3D() {
+        if (!els.pyramidHost) return null;
+        if (!window.THREE) {
+          if (els.pyrMeta) els.pyrMeta.textContent = "Three.js tidak tersedia";
+          return null;
+        }
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000);
+
+        const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
+        camera.position.set(0, 1.6, 4.2);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.max(1, window.devicePixelRatio || 1));
+        renderer.setSize(10, 10, false);
+        renderer.domElement.className = "threeCanvas";
+        els.pyramidHost.innerHTML = "";
+        els.pyramidHost.appendChild(renderer.domElement);
+
+        const ambient = new THREE.AmbientLight(0xffffff, 0.35);
+        scene.add(ambient);
+
+        const light1 = new THREE.DirectionalLight(0xffffff, 0.9);
+        light1.position.set(2, 3, 2);
+        scene.add(light1);
+
+        const light2 = new THREE.PointLight(0x00d3ff, 0.8, 50);
+        light2.position.set(-2, 2, 2);
+        scene.add(light2);
+
+        const grid = new THREE.GridHelper(6, 12, 0x223344, 0x111820);
+        grid.position.y = -1.3;
+        scene.add(grid);
+
+        const axes = new THREE.AxesHelper(2.2);
+        scene.add(axes);
+
+        const trailMax = 240;
+        const trailPositions = new Float32Array(trailMax * 3);
+        const trailColors = new Float32Array(trailMax * 3);
+        const trailGeo = new THREE.BufferGeometry();
+        trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPositions, 3));
+        trailGeo.setAttribute("color", new THREE.BufferAttribute(trailColors, 3));
+        trailGeo.setDrawRange(0, 0);
+
+        const lineMat = new THREE.LineBasicMaterial({
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.95,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        const line = new THREE.Line(trailGeo, lineMat);
+        scene.add(line);
+
+        const pointsMat = new THREE.PointsMaterial({
+          size: 0.06,
+          sizeAttenuation: true,
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.9,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        const points = new THREE.Points(trailGeo, pointsMat);
+        scene.add(points);
+
+        const originDot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.06, 14, 14),
+          new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.05, roughness: 0.4, emissive: new THREE.Color(0x111111), emissiveIntensity: 0.7 })
+        );
+        originDot.position.set(0, 0, 0);
+        scene.add(originDot);
+
+        let lastAppliedAt = 0;
+        let sampleCount = 0;
+        const ring = new Array(trailMax);
+        for (let i = 0; i < trailMax; i++) ring[i] = { ax: 0, ay: 0, az: 0, mag: 0, glow: 0 };
+
+        function resize() {
+          const rect = els.pyramidHost.getBoundingClientRect();
+          const w = Math.max(1, Math.floor(rect.width));
+          const h = Math.max(1, Math.floor(rect.height));
+          renderer.setSize(w, h, false);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+        }
+
+        resize();
+        window.addEventListener("resize", resize);
+
+        let camAngle = 0;
+
+        function render() {
+          if (state.lastMessageAt && state.lastMessageAt !== lastAppliedAt) {
+            lastAppliedAt = state.lastMessageAt;
+            const t = state.trailTarget;
+            const ax = Number(t.ax) || 0;
+            const ay = Number(t.ay) || 0;
+            const az = Number(t.az) || 0;
+            const mag = Math.sqrt(ax * ax + ay * ay + az * az);
+            const glow = clamp((Number(t.peak) - 0.05) / 1.2, 0, 1);
+
+            ring[sampleCount % trailMax] = { ax, ay, az, mag, glow };
+            sampleCount += 1;
+
+            const n = Math.min(sampleCount, trailMax);
+            trailGeo.setDrawRange(0, n);
+
+            const mode = state.trailMode;
+            const x0 = -2.6;
+            const x1 = 2.6;
+            for (let i = 0; i < n; i++) {
+              const idx = (sampleCount - n + i) % trailMax;
+              const p = ring[idx];
+              const x = n === 1 ? 0 : x0 + ((x1 - x0) * i) / (n - 1);
+              const theta = (sampleCount - n + i) * 0.22;
+
+              if (mode === "waveform") {
+                const scale = 0.55;
+                trailPositions[i * 3 + 0] = x;
+                trailPositions[i * 3 + 1] = p.ax * scale;
+                trailPositions[i * 3 + 2] = p.ay * scale;
+              } else {
+                const scaleY = 0.55;
+                const scaleXZ = 0.22;
+                const radius = clamp(p.mag * 0.65, 0.02, 2.1);
+                trailPositions[i * 3 + 0] = radius * Math.cos(theta) + p.ax * scaleXZ;
+                trailPositions[i * 3 + 1] = p.ay * scaleY;
+                trailPositions[i * 3 + 2] = radius * Math.sin(theta) + p.az * scaleXZ;
+              }
+
+              const age = i / Math.max(1, n - 1);
+              const fade = 0.08 + age * age * 0.92;
+              const hot = clamp(p.glow * 1.2, 0, 1);
+              const r = (0.10 + hot * 0.95) * fade;
+              const g = (0.55 + (1 - hot) * 0.45) * fade;
+              const b = (1.00 - hot * 0.45) * fade;
+              trailColors[i * 3 + 0] = r;
+              trailColors[i * 3 + 1] = g;
+              trailColors[i * 3 + 2] = b;
+            }
+
+            trailGeo.attributes.position.needsUpdate = true;
+            trailGeo.attributes.color.needsUpdate = true;
+
+            pointsMat.size = 0.05 + glow * 0.12;
+            lineMat.opacity = 0.55 + glow * 0.45;
+            pointsMat.opacity = 0.55 + glow * 0.45;
+            originDot.material.emissiveIntensity = 0.25 + glow * 1.25;
+
+            if (els.pyrMeta) {
+              const label = state.trailMode === "waveform" ? "WAVEFORM" : "HELIX";
+              els.pyrMeta.textContent = `${label} |a|=${mag.toFixed(3)} m/s²`;
+            }
+          }
+
+          camAngle += 0.004;
+          const radius = 4.2;
+          camera.position.x = Math.sin(camAngle) * radius;
+          camera.position.z = Math.cos(camAngle) * radius;
+          camera.position.y = 1.55 + Math.sin(camAngle * 0.7) * 0.15;
+          camera.lookAt(0, 0, 0);
+
+          renderer.render(scene, camera);
+        }
+
+        if (els.pyrMeta) els.pyrMeta.textContent = "OK";
+        return { render };
+      }
+
+      function updateUiFromLatest() {
+        const n = state.t.length;
+        if (!n) return;
+        const i = n - 1;
+        const ax = state.ax[i];
+        const ay = state.ay[i];
+        const az = state.az[i];
+        const mag = state.mag[i];
+        const peak = state.peak[i];
+        const mmi = state.mmi;
+        const rssi = state.rssi;
+        const vib = state.vib;
+
+        els.axVal.innerHTML = `${toFixed3(ax)} <small>m/s²</small>`;
+        els.ayVal.innerHTML = `${toFixed3(ay)} <small>m/s²</small>`;
+        els.azVal.innerHTML = `${toFixed3(az)} <small>m/s²</small>`;
+        els.magVal.innerHTML = `${toFixed3(mag)} <small>m/s²</small>`;
+        els.peakVal.innerHTML = `${toFixed3(peak)} <small>m/s²</small>`;
+        els.rssiVal.textContent = rssi ? String(rssi) : "---";
+        els.vibVal.innerHTML = `${Number.isFinite(vib) ? String(vib) : "0"} <small>pps</small>`;
+        updateMmi(mmi);
+
+        const last = new Date(state.lastMessageAt).toLocaleTimeString();
+        els.metaText.textContent = `Last update: ${last}`;
+      }
+
+      function connect(wsUrl) {
+        state.lastWsUrl = wsUrl;
+        if (state.ws) {
+          try {
+            state.ws.close();
+          } catch {}
+          state.ws = null;
+        }
+        try {
+          state.ws = new WebSocket(wsUrl);
+        } catch {
+          setStatus("warn", "WS URL INVALID");
+          return;
+        }
+
+        setStatus("warn", "CONNECTING");
+
+        state.ws.onopen = () => {
+          state.connected = true;
+          state.lastMessageAt = Date.now();
+          state.lastOpenAt = state.lastMessageAt;
+          state.shortCloseCount = 0;
+          setStatus("good", "CONNECTED");
+        };
+
+        state.ws.onmessage = (event) => {
+          state.lastMessageAt = Date.now();
+          let data;
+          try {
+            data = JSON.parse(event.data);
+          } catch {
+            return;
+          }
+          if (!data || data.type !== "sensor") return;
+          const ax = Number(data.ax);
+          const ay = Number(data.ay);
+          const az = Number(data.az);
+          const peak = Number(data.peak);
+          const mmi = clamp(Number(data.mmi) || 1, 1, 12);
+          const rssi = Number(data.rssi) || 0;
+          const vib = Number(data.vib) || 0;
+          if (!Number.isFinite(ax) || !Number.isFinite(ay) || !Number.isFinite(az) || !Number.isFinite(peak)) return;
+
+          const ts = Date.now();
+          pushPoint(ts, ax, ay, az, peak, mmi, rssi, vib);
+          updateUiFromLatest();
+
+          const mag = state.mag[state.mag.length - 1];
+          state.trailTarget = { ax, ay, az, peak, mmi };
+          if (mmi >= 5 && ts - state.lastAlertAt > 1200) {
+            state.lastAlertAt = ts;
+            addAlert(ts, mmi, peak, mag);
+          }
+        };
+
+        state.ws.onclose = () => {
+          state.connected = false;
+          const now = Date.now();
+          const openForMs = state.lastOpenAt ? now - state.lastOpenAt : 0;
+          if (openForMs > 0 && openForMs < 1200) {
+            state.shortCloseCount += 1;
+          } else {
+            state.shortCloseCount = 0;
+          }
+
+          let nextUrl = els.wsUrl.value.trim();
+          try {
+            const u = new URL(nextUrl);
+            const port = Number(u.port || (u.protocol === "wss:" ? 443 : 80));
+            if (!state.fallbackTried && state.shortCloseCount >= 2 && port === 8765) {
+              u.port = "8766";
+              nextUrl = u.toString();
+              els.wsUrl.value = nextUrl;
+              state.fallbackTried = true;
+              state.shortCloseCount = 0;
+              setStatus("warn", "TRY 8766");
+              setTimeout(() => connect(nextUrl), 400);
+              return;
+            }
+          } catch {}
+
+          setStatus("warn", "DISCONNECTED");
+          setTimeout(() => connect(nextUrl), 1500);
+        };
+
+        state.ws.onerror = () => {
+          state.connected = false;
+          setStatus("warn", "WS ERROR");
+        };
+      }
+
+      function resolveDefaultWsUrl() {
+        const host = (location && location.hostname) ? location.hostname : "192.168.1.66";
+        const proto = (location && location.protocol === "https:") ? "wss://" : "ws://";
+        return `${proto}${host}:8765`;
+      }
+
+      function tick() {
+        const now = Date.now();
+        const since = now - state.lastMessageAt;
+        if (state.connected) {
+          if (since > 5000) {
+            setStatus("warn", "NO SIGNAL");
+          } else {
+            setStatus("good", "CONNECTED");
+          }
+        }
+        if (now - state.lastChartDrawAt > 80) {
+          state.lastChartDrawAt = now;
+          drawChart();
+        }
+        if (waveform3d) waveform3d.render();
+        requestAnimationFrame(tick);
+      }
+
+      els.wsUrl.value = resolveDefaultWsUrl();
+      els.btnConnect.addEventListener("click", () => connect(els.wsUrl.value.trim()));
+      els.wsUrl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") connect(els.wsUrl.value.trim());
+      });
+      updateMmi(1);
+      if (els.trailMode) {
+        els.trailMode.value = state.trailMode;
+        els.trailMode.addEventListener("change", () => {
+          state.trailMode = els.trailMode.value === "waveform" ? "waveform" : "helix";
+        });
+      }
+      updateLogMeta();
+      let initialShowLog = false;
+      try {
+        const ui = JSON.parse(localStorage.getItem(LOG_UI_STORAGE_KEY) || "null");
+        initialShowLog = Boolean(ui && ui.showLog);
+      } catch {}
+      setLogVisible(initialShowLog);
+      if (els.toggleLog) {
+        els.toggleLog.addEventListener("click", () => setLogVisible(!state.showLog));
+      }
+      const waveform3d = initWaveformTrail3D();
+      connect(els.wsUrl.value.trim());
+      tick();
+    </script>
+  </body>
+</html>
