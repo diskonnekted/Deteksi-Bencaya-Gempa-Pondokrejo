@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Monitoring Bahaya Gempa - Kalurahan Pondokrejo, Sleman Yogyakarta</title>
     <style>
       :root {
@@ -140,6 +143,11 @@
         border-radius: 10px;
         padding: 7px 10px;
         cursor: pointer;
+      }
+
+      a.btn {
+        text-decoration: none;
+        display: inline-block;
       }
 
       .btn:active {
@@ -477,6 +485,7 @@
             <input id="wsUrl" type="text" spellcheck="false" />
           </div>
           <button id="btnConnect" class="btn" type="button">Connect</button>
+          <a class="btn" href="./seismo_log_chart.html">Log Chart</a>
         </div>
       </div>
     </header>
@@ -686,6 +695,8 @@
         alertCount: 0
       };
 
+      let waveform3d = null;
+
       const LOG_STORAGE_KEY = "seismo_alert_log_v1";
       const LOG_UI_STORAGE_KEY = "seismo_alert_log_ui_v1";
       const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -693,6 +704,31 @@
 
       function clamp(n, a, b) {
         return Math.max(a, Math.min(b, n));
+      }
+
+      function ensureThreeJs() {
+        if (window.THREE) return Promise.resolve(true);
+        const urls = [
+          "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
+          "https://unpkg.com/three@0.128.0/build/three.min.js"
+        ];
+
+        function load(url) {
+          return new Promise((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = url;
+            s.async = true;
+            s.onload = () => resolve(true);
+            s.onerror = () => reject(new Error("load_failed"));
+            document.head.appendChild(s);
+          });
+        }
+
+        let p = Promise.reject(new Error("start"));
+        for (const u of urls) {
+          p = p.catch(() => load(u));
+        }
+        return p.then(() => Boolean(window.THREE));
       }
 
       function toFixed3(n) {
@@ -948,7 +984,7 @@
       function initWaveformTrail3D() {
         if (!els.pyramidHost) return null;
         if (!window.THREE) {
-          if (els.pyrMeta) els.pyrMeta.textContent = "Three.js tidak tersedia";
+          if (els.pyrMeta) els.pyrMeta.textContent = "3D loading...";
           return null;
         }
 
@@ -1026,13 +1062,20 @@
         const ring = new Array(trailMax);
         for (let i = 0; i < trailMax; i++) ring[i] = { ax: 0, ay: 0, az: 0, mag: 0, glow: 0 };
 
+        let lastW = 0;
+        let lastH = 0;
+
         function resize() {
           const rect = els.pyramidHost.getBoundingClientRect();
           const w = Math.max(1, Math.floor(rect.width));
           const h = Math.max(1, Math.floor(rect.height));
-          renderer.setSize(w, h, false);
-          camera.aspect = w / h;
-          camera.updateProjectionMatrix();
+          if (w !== lastW || h !== lastH) {
+            lastW = w;
+            lastH = h;
+            renderer.setSize(w, h, false);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+          }
         }
 
         resize();
@@ -1041,6 +1084,7 @@
         let camAngle = 0;
 
         function render() {
+          resize();
           if (state.lastMessageAt && state.lastMessageAt !== lastAppliedAt) {
             lastAppliedAt = state.lastMessageAt;
             const t = state.trailTarget;
@@ -1281,7 +1325,13 @@
       if (els.toggleLog) {
         els.toggleLog.addEventListener("click", () => setLogVisible(!state.showLog));
       }
-      const waveform3d = initWaveformTrail3D();
+      ensureThreeJs()
+        .then(() => {
+          waveform3d = initWaveformTrail3D();
+        })
+        .catch(() => {
+          if (els.pyrMeta) els.pyrMeta.textContent = "3D gagal dimuat";
+        });
       connect(els.wsUrl.value.trim());
       tick();
     </script>

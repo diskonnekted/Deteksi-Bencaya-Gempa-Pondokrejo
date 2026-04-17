@@ -21,6 +21,12 @@ const bool enableHttpPost = true;
 const char* postUrl = "http://192.168.1.66:18080/api/sensor";
 const char* postApiKey = "";
 
+const uint8_t relayPin = 26;
+const bool relayActiveLow = true;
+const unsigned long relayHoldMs = 15000;
+unsigned long relayActiveUntilMs = 0;
+bool relayOn = false;
+
 // PC IP (your computer)
 const char* pcIP = "192.168.1.66";
 const uint16_t pcPort = 8888;
@@ -49,6 +55,17 @@ unsigned long lastHttpPostMs = 0;
 
 bool startsWith(const String& s, const char* prefix) {
   return s.startsWith(prefix);
+}
+
+void setRelay(bool on) {
+  relayOn = on;
+  uint8_t level = relayActiveLow ? (on ? LOW : HIGH) : (on ? HIGH : LOW);
+  digitalWrite(relayPin, level);
+}
+
+void updateRelay() {
+  bool shouldOn = millis() < relayActiveUntilMs;
+  if (shouldOn != relayOn) setRelay(shouldOn);
 }
 
 void postJson(const String& body) {
@@ -265,6 +282,9 @@ void handleSave() {
 void setup() {
   Serial.begin(115200);
 
+  pinMode(relayPin, OUTPUT);
+  setRelay(false);
+
   // Init LoRa
   LoRa.setPins(LORA_NSS, LORA_RST, LORA_DIO0);
   while (!LoRa.begin(920E6)) {
@@ -308,6 +328,7 @@ String getMMIDescription(int mmi) {
 
 void loop() {
   web.handleClient();
+  updateRelay();
 
   if (WiFi.status() == WL_CONNECTED) {
     wifiFailStartMs = 0;
@@ -375,6 +396,11 @@ void loop() {
     json += "\"vib\":" + String(vib);
     json += "}";
     postJson(json);
+
+    if (mmi >= 5) {
+      relayActiveUntilMs = millis() + relayHoldMs;
+      updateRelay();
+    }
 
     Serial.print("Mag=");
     Serial.print(mag, 3);
